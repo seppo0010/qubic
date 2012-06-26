@@ -10,6 +10,7 @@ body {
     position: absolute;
     top: 0px;
     right: 0px;
+    width: 150px;
 }
 #holder {
     position: relative;
@@ -17,9 +18,21 @@ body {
 #holder div {
     position: absolute;
 }
-#colors-list div {
+#colors-list {
+    padding-right: 150px;
+}
+#colors-list div.color {
     border: outset;
     cursor: pointer;
+    margin: 4px;
+    width: 30px;
+    height: 30px;
+    line-height: 30px;
+    text-align: center;
+    float: left;
+}
+#colors-list div.clear {
+    clear: both;
 }
 #colors-list div.active {
     border: inset;
@@ -80,11 +93,18 @@ document.addEventListener('drop', function(e) {
                 new thumbnailer(canvas, image, w, 3);
                 var context = canvas.getContext('2d');
                 var h = canvas.height;
+                $('#height').val(h);
+                var used = {};
                 for (var i = 0; i < h; i++) {
                     for (var j = 0; j < w; j++) {
                         var data = context.getImageData(j, i, 1, 1).data;
                         var pixel = $('<div><\/div>');
                         var color = findColor(data);
+                        if (!used[colors.indexOf(color)]) {
+                            used[colors.indexOf(color)] = 1;
+                        } else {
+                            used[colors.indexOf(color)]++;
+                        }
                         pixel.css({
                             top: (i * QUBIC_SIZE) + 'px',
                             left: (j * QUBIC_SIZE) + 'px',
@@ -95,6 +115,11 @@ document.addEventListener('drop', function(e) {
                                 color[2] + ')'});
                         holder.append(pixel);
                     }
+                }
+
+                $('#colors-list div.color').text('0');
+                for (var i in used) {
+                    $($('#colors-list div.color')[i]).text(used[i]);
                 }
             };
             image.src = evt.target.result;
@@ -113,10 +138,17 @@ var rgbToHex = function(rgb) {
     );
 };
 var addColor = function(rgb) {
+    for (var i in colors) {
+        if (colors[i][0] == rgb[0] && colors[i][1] == rgb[1] &&
+                colors[i][2] == rgb[2]) return;
+    }
     colors.push(rgb);
-    var el = $('<div><\/div>').css({marginBottom: '4px',
-        background: '#' + rgbToHex(rgb), width: '30px', height: '30px'});
-    $('#colors-list').append(el);
+    var el = $('<div class="color">0<\/div>').css(
+            {background: '#' + rgbToHex(rgb)});
+    if (rgb[0] < 60 || rgb[1] < 60 || rgb[2] < 60) {
+        el.css({color: 'white'});
+    }
+    el.insertBefore($('#colors-list div.clear'));
     el.click(function(e) {
         $('#colors-list .active').removeClass('active');
         $(e.currentTarget).addClass('active');
@@ -135,9 +167,10 @@ $(function() {
         $('#export_colors').val(JSON.stringify(colors));
     });
     $('#do_import_colors').click(function(e) {
-        $('#colors-list').html('');
-        var c = JSON.parse($('#export_colors').val());
+        $('#colors-list div.color').remove();
         colors = [];
+
+        var c = JSON.parse($('#export_colors').val());
         $.each(c, function(i, c) {
             addColor(c);
         });
@@ -159,9 +192,18 @@ $(function() {
             $('#colors-list .active').css('background')});
     });
     $('#holder').mousemove(function(e) {
-        if (e.which)
+        if (e.which && $('#colors-list .active').length > 0) {
+            var old_color = $(e.toElement).css('background-color');
+            $('#colors-list div.color').each(function(i, e) {
+                if ($(e).css('background-color') == old_color) {
+                    $(e).text(parseInt($(e).text()) - 1);
+                }
+            });
+            $('#colors-list .active').text(
+                parseInt($('#colors-list .active').text()) + 1);
             $(e.toElement).css({background:
                 $('#colors-list .active').css('background')});
+        }
     });
     $('#do_import_drawing').click(function(e) {
         $('#holder').html('');
@@ -181,10 +223,12 @@ $(function() {
 </script>
 </head>
 <body>
+<label for="width"><input id="width" value="20" /></label>
+<label for="height"><input id="height" value="0" /></label>
 <div id="colors">
-<input id="width" value="40" />
 <input class="color" id="new_color" /><button id="add">Add</button>
 <div id="colors-list">
+<div class="clear" />
 </div>
 </div>
 <div id="export">
