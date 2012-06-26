@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Qubic</title>
+<style>
+body {
+    background: red;
+}
+#export {
+    position: absolute;
+    top: 0px;
+    right: 0px;
+}
+#holder {
+    position: relative;
+}
+#holder div {
+    position: absolute;
+}
+#colors-list div {
+    border: outset;
+    cursor: pointer;
+}
+#colors-list div.active {
+    border: inset;
+}
+</style>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.6.2/jquery.min.js"></script>
+<script type="text/javascript" src="jscolor/jscolor.js"></script>
+<script type="text/javascript" src="json2.js"></script>
+<script src="lanczos.js"></script>
+<script>
+var QUBIC_SIZE = 10;
+var colors = [];
+
+var findColor = function(data) {
+    var best_match = null
+    var best_match_distance = 0;
+    for (var i in colors) {
+        var color = colors[i];
+        var distance = (color[0] - data[0]) * (color[0] - data[0]) +
+            (color[1] - data[1]) * (color[1] - data[1]) +
+            (color[2] - data[2]) * (color[2] - data[2]);
+        if (best_match == null || best_match_distance > distance) {
+            best_match = color;
+            best_match_distance = distance;
+        }
+    }
+    return best_match;
+}
+document.addEventListener('drop', function(e) {
+    e.stopPropagation();
+    e.preventDefault();
+    var files = e.dataTransfer.files;
+    for (var i = 0, file; file = files[i]; i++) {
+        if (!file.type.match(/image.*/)) {
+            continue;
+        }
+
+        var reader = new FileReader();
+
+        reader.onerror = function(e) {
+            alert('Error code: ' + e.target.error.code);
+        };
+
+        reader.onload = (function(aFile) {
+          return function(evt) {
+            var image = new Image();
+            var holder = $('#holder');
+            holder.html('');
+            var w = $('#width').val();
+            image.onload = function() {
+                var canvas = document.createElement('canvas');
+                new thumbnailer(canvas, image, w, 3);
+                var context = canvas.getContext('2d');
+                var h = canvas.height;
+                for (var i = 0; i < h; i++) {
+                    for (var j = 0; j < w; j++) {
+                        var data = context.getImageData(j, i, 1, 1).data;
+                        var pixel = $('<div><\/div>');
+                        var color = findColor(data);
+                        pixel.css({
+                            top: (i * QUBIC_SIZE) + 'px',
+                            left: (j * QUBIC_SIZE) + 'px',
+                            width: QUBIC_SIZE + 'px',
+                            height: QUBIC_SIZE + 'px',
+                            background: 'rgb(' +
+                                color[0] + ',' + color[1] + ',' +
+                                color[2] + ')'});
+                        holder.append(pixel);
+                    }
+                }
+            };
+            image.src = evt.target.result;
+          }
+        })(file);
+
+        reader.readAsDataURL(file);
+    }
+}, false);
+var rgbToHex = function(rgb) {
+    return (
+        (0x100 | Math.round(rgb[0])).toString(16).substr(1) +
+        (0x100 | Math.round(rgb[1])).toString(16).substr(1) +
+        (0x100 | Math.round(rgb[2])).toString(16).substr(1)
+    );
+};
+var addColor = function(rgb) {
+    colors.push(rgb);
+    var el = $('<div><\/div>').css({marginBottom: '4px',
+        background: '#' + rgbToHex(rgb), width: '30px', height: '30px'});
+    $('#colors-list').append(el);
+    el.click(function(e) {
+        $('#colors-list .active').removeClass('active');
+        $(e.currentTarget).addClass('active');
+    });
+}
+$(function() {
+    $('#add').click(function() {
+        var color = $('#new_color')[0].color;
+        addColor([color.rgb[0] * 255, color.rgb[1] * 255,
+            color.rgb[2] * 255]);
+    });
+    $.each([[255, 255, 255], [0, 0, 0]], function(i, e) {
+        addColor(e);
+    });
+    $('#do_export_colors').click(function(e) {
+        $('#export_colors').val(JSON.stringify(colors));
+    });
+    $('#do_import_colors').click(function(e) {
+        $('#colors-list').html('');
+        var c = JSON.parse($('#export_colors').val());
+        colors = [];
+        $.each(c, function(i, c) {
+            addColor(c);
+        });
+    });
+    $('#do_export_drawing').click(function(e) {
+        var children = [];
+        $('#holder').children().each(function(i, e) {
+            var el = $(e);
+            children.push({
+                y: parseInt(el.css('top')) / QUBIC_SIZE,
+                x: parseInt(el.css('left')) / QUBIC_SIZE,
+                c: el.css('background-color')
+            });
+        });
+        $('#export_drawing').val(JSON.stringify(children));
+    });
+    $('#holder').click(function(e) {
+        $(e.toElement).css({background:
+            $('#colors-list .active').css('background')});
+    });
+    $('#holder').mousemove(function(e) {
+        if (e.which)
+            $(e.toElement).css({background:
+                $('#colors-list .active').css('background')});
+    });
+    $('#do_import_drawing').click(function(e) {
+        $('#holder').html('');
+        var c = JSON.parse($('#export_drawing').val());
+        var holder = $('#holder');
+        $.each(c, function(i, e) {
+            holder.append($('<div><\/div>').css({
+                top: (e.y * QUBIC_SIZE) + 'px',
+                left: (e.x * QUBIC_SIZE) + 'px',
+                width: QUBIC_SIZE + 'px',
+                height: QUBIC_SIZE + 'px',
+                background: e.c
+                }))
+        });
+    });
+});
+</script>
+</head>
+<body>
+<div id="colors">
+<input id="width" value="40" />
+<input class="color" id="new_color" /><button id="add">Add</button>
+<div id="colors-list">
+</div>
+</div>
+<div id="export">
+<button id="do_export_colors">Export colors</button><br />
+<textarea id="export_colors"></textarea><br />
+<button id="do_import_colors">Import colors</button><br />
+<button id="do_export_drawing">Export drawing</button><br />
+<textarea id="export_drawing"></textarea><br />
+<button id="do_import_drawing">Import drawing</button><br />
+</div>
+<div id="holder"></div>
+</body>
+</html>
