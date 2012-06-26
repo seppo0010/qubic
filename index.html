@@ -48,6 +48,7 @@ var findColor = function(data) {
     }
     return best_match;
 }
+$(function() {
 document.addEventListener('drop', function(e) {
     e.stopPropagation();
     e.preventDefault();
@@ -98,6 +99,7 @@ document.addEventListener('drop', function(e) {
         reader.readAsDataURL(file);
     }
 }, false);
+});
 var rgbToHex = function(rgb) {
     return (
         (0x100 | Math.round(rgb[0])).toString(16).substr(1) +
